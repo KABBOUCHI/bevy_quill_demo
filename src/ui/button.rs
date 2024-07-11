@@ -1,18 +1,23 @@
+use super::QuillUiTheme;
 use crate::ui::ThemeMode;
 use bevy::{
+    a11y::{
+        accesskit::{NodeBuilder, Role},
+        AccessibilityNode, Focus,
+    },
     color::{Color, Srgba},
-    prelude::NodeBundle,
+    prelude::{NodeBundle, World},
     ui::Val,
     window::CursorIcon,
 };
+use bevy_mod_picking::prelude::{Click, ListenerInput, On, Pointer};
+
 use bevy_mod_stylebuilder::{
     StyleBuilder, StyleBuilderBackground, StyleBuilderBorderColor, StyleBuilderBorderRadius,
-    StyleBuilderFont, StyleBuilderLayout,
+    StyleBuilderFont, StyleBuilderLayout, StyleHandle, StyleTuple,
 };
-use bevy_quill::{Element, IntoViewChild, View, ViewChild, ViewTemplate};
-use bevy_quill_obsidian::{cursor::StyleBuilderCursor, hooks::UseIsHover};
-
-use super::QuillUiTheme;
+use bevy_quill::{Callback, Element, IntoViewChild, RunCallback, View, ViewChild, ViewTemplate};
+use bevy_quill_obsidian::{controls::IsDisabled, cursor::StyleBuilderCursor, hooks::UseIsHover};
 
 #[derive(Default, Clone, Copy, PartialEq)]
 pub enum ButtonVariant {
@@ -30,6 +35,7 @@ pub enum ButtonColor {
     Primary,
     Indigo,
     Blue,
+    Green,
 
     White,
     Black,
@@ -52,7 +58,10 @@ pub struct Button {
     pub color: ButtonColor,
     pub variant: ButtonVariant,
     pub size: ButtonSize,
+    pub style: StyleHandle,
     pub block: bool,
+
+    pub on_click: Option<Callback>,
 }
 
 impl Button {
@@ -74,6 +83,16 @@ impl Button {
         self.size = size;
         self
     }
+
+    pub fn on_click(mut self, callback: Callback) -> Self {
+        self.on_click = Some(callback);
+        self
+    }
+
+    pub fn style<S: StyleTuple + 'static>(mut self, style: S) -> Self {
+        self.style = style.into_handle();
+        self
+    }
 }
 
 impl ViewTemplate for Button {
@@ -84,28 +103,31 @@ impl ViewTemplate for Button {
         let color = self.color;
         let hovering = cx.is_hovered(id);
         let theme = cx.use_resource::<QuillUiTheme>().clone();
-
+        let on_click = self.on_click;
         Element::<NodeBundle>::for_entity(id)
             .named("Button")
-            .style(|ss: &mut StyleBuilder| {
-                ss.cursor(CursorIcon::Pointer);
+            .style((
+                |ss: &mut StyleBuilder| {
+                    ss.cursor(CursorIcon::Pointer);
 
-                // block: w-full flex justify-center items-center
-                ss.display(bevy::ui::Display::Flex)
-                    .flex_shrink(0.)
-                    .justify_items(bevy::ui::JustifyItems::Center)
-                    // .width(Val::Px(100.))
-                    .align_items(bevy::ui::AlignItems::Center);
+                    // block: w-full flex justify-center items-center
+                    ss.display(bevy::ui::Display::Flex)
+                        .flex_shrink(0.)
+                        .justify_items(bevy::ui::JustifyItems::Center)
+                        // .width(Val::Px(100.))
+                        .align_items(bevy::ui::AlignItems::Center);
 
-                // inline: inline-flex items-center
+                    // inline: inline-flex items-center
 
-                // rounded-md
-                ss.border_radius(6.0);
+                    // rounded-md
+                    ss.border_radius(6.0);
 
-                ss.border(1).border_color(Color::BLACK);
-            })
+                    ss.border(1).border_color(Color::BLACK);
+                },
+                self.style.clone(),
+            ))
             .style_dyn(
-                |(hovering, color, theme), sb| {
+                |(hovering, color, theme, style), sb| {
                     sb.background_color(button_bg_color(color, theme.clone(), hovering));
                     sb.color(button_color(color, theme.clone(), hovering));
 
@@ -116,8 +138,10 @@ impl ViewTemplate for Button {
                     } else {
                         sb.border(0);
                     }
+
+                    style.apply(sb);
                 },
-                (hovering, color, theme),
+                (hovering, color, theme, self.style.clone()),
             )
             .style_dyn(
                 |size, sb| match size {
@@ -138,6 +162,27 @@ impl ViewTemplate for Button {
                     }
                 },
                 self.size,
+            )
+            .insert_dyn(
+                move |_| {
+                    (
+                        AccessibilityNode::from(NodeBuilder::new(Role::Button)),
+                        On::<Pointer<Click>>::run(move |world: &mut World| {
+                            let mut focus = world.get_resource_mut::<Focus>().unwrap();
+                            focus.0 = Some(id);
+                            if !world.is_disabled(id) {
+                                let mut event = world
+                                    .get_resource_mut::<ListenerInput<Pointer<Click>>>()
+                                    .unwrap();
+                                event.stop_propagation();
+                                if let Some(on_click) = on_click {
+                                    world.run_callback(on_click, ());
+                                }
+                            }
+                        }),
+                    )
+                },
+                (),
             )
             .children(self.children.clone())
     }
@@ -165,6 +210,10 @@ fn button_bg_color(color: ButtonColor, theme: QuillUiTheme, is_hovering: bool) -
 
     if color == ButtonColor::Blue {
         return theme.colors.blue[index];
+    }
+
+    if color == ButtonColor::Green {
+        return theme.colors.green[index];
     }
 
     if color == ButtonColor::White {
