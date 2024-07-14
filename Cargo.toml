@@ -8,6 +8,7 @@ bevy = "0.14.0"
 bevy_mod_picking = "0.20.1"
 bevy_mod_stylebuilder = "0.1.1"
 bevy_quill = "0.1.2"
+bevy_quill_core = { path = "/Users/kabbouchi/codes/quill/crates/bevy_quill_core" }
 bevy_quill_obsidian = "0.1.0"
 bevy_quill_obsidian_inspect = "0.1.0"
 

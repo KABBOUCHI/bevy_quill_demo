@@ -8,7 +8,7 @@ use bevy_mod_picking::DefaultPickingPlugins;
 use bevy_mod_stylebuilder::*;
 use bevy_quill::{Cx, Element, QuillPlugin, View, ViewTemplate};
 
-use bevy_quill_demo::ui::*;
+use bevy_quill_demo::{clx, ui::*};
 use bevy_quill_obsidian::controls::Button as ObsidianButton;
 use bevy_quill_obsidian::ObsidianUiPlugin;
 
@@ -34,7 +34,7 @@ fn setup(mut commands: Commands) {
             .style(|ss: &mut StyleBuilder| {
                 ss.flex_direction(FlexDirection::Column);
             })
-            .children((ThemeSwitcher, ShowcaseView))
+            .children((ThemeSwitcher, ShowcaseView, ClxView))
             .to_root(),
     );
 }
@@ -252,5 +252,26 @@ impl ViewTemplate for ShowcaseView {
                             )),
                     )),
             ))
+    }
+}
+
+#[derive(Clone, PartialEq)]
+struct ClxView;
+
+impl ViewTemplate for ClxView {
+    type View = impl View;
+
+    fn create(&self, cx: &mut Cx) -> Self::View {
+        let id = cx.create_entity();
+
+        Element::<NodeBundle>::for_entity(id)
+            .style((
+                clx("flex justify-center text-[18px] items-center gap-[3px]"),
+                clx("bg-[#f0f0f0] px-[32px] py-[8px]"),
+                clx("text-black"),
+                clx("rounded-[16px]"),
+                clx("w-[100px] h-[40px]"),
+            ))
+            .children("Clx")
     }
 }
